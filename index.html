@@ -178,6 +178,39 @@
   .star.filled { color: #f5c518; }
   .star:active { transform: scale(0.85); }
 
+  /* TEXT */
+  .text-card-body {
+    padding: 0 18px 14px;
+  }
+  .text-entry-row {
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .text-entry-input {
+    flex: 1; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); padding: 10px 12px;
+    font-size: 15px; font-family: 'DM Sans', sans-serif;
+    outline: none; resize: none;
+    min-height: 42px; max-height: 120px;
+    line-height: 1.4;
+  }
+  .text-entry-input:focus { border-color: var(--accent); }
+  .text-entry-input::placeholder { color: var(--muted); }
+  .text-submit-btn {
+    width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+    background: var(--accent); color: #111;
+    border: none; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s, transform 0.1s;
+  }
+  .text-submit-btn:active { background: #aad55f; transform: scale(0.93); }
+  .text-last {
+    font-size: 12px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-top: 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
   /* DELETE swipe hint */
   .tracker-card .del-btn {
     display: none;
@@ -338,6 +371,10 @@
         <span class="type-icon">★</span>
         <span class="type-label">1–5 Stars</span>
       </div>
+      <div class="type-opt" data-type="text" onclick="selectType('text')" style="grid-column: span 3">
+        <span class="type-icon">✎</span>
+        <span class="type-label">Text / Notes</span>
+      </div>
     </div>
     <button class="add-confirm-btn" onclick="confirmAdd()">Add Tracker</button>
   </div>
@@ -380,6 +417,7 @@ function checkDayReset() {
       if (t.type === 'yesno') t.value = null;
       if (t.type === 'count') t.value = 0;
       if (t.type === 'stars') t.value = 0;
+      // text trackers keep lastEntry but don't reset
     });
     localStorage.setItem('lastDay', today);
     save();
@@ -406,7 +444,7 @@ function renderAll() {
         <div class="tracker-name">${escHtml(t.name)}</div>
         <div class="tracker-type">${typeLabel(t.type)}</div>
       </div>
-      <div class="tracker-control">${controlHTML(t)}</div>
+      ${t.type !== 'text' ? `<div class="tracker-control">${controlHTML(t)}</div>` : ''}
       <button class="del-btn" onclick="deleteTracker('${t.id}')" title="Delete">✕</button>
     `;
 
@@ -418,6 +456,13 @@ function renderAll() {
     inner.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
 
     card.appendChild(inner);
+
+    if (t.type === 'text') {
+      const extra = document.createElement('div');
+      extra.innerHTML = textCardExtra(t);
+      while (extra.firstChild) card.appendChild(extra.firstChild);
+    }
+
     list.appendChild(card);
   });
 
@@ -426,7 +471,7 @@ function renderAll() {
 }
 
 function typeLabel(type) {
-  return { count: 'Counter', yesno: 'Yes / No', stars: 'Rating' }[type] || type;
+  return { count: 'Counter', yesno: 'Yes / No', stars: 'Rating', text: 'Text / Notes' }[type] || type;
 }
 
 function controlHTML(t) {
@@ -455,6 +500,19 @@ function controlHTML(t) {
     return `<div class="stars-control">${s}</div>`;
   }
   return '';
+}
+
+function textCardExtra(t) {
+  if (t.type !== 'text') return '';
+  const last = t.lastEntry ? `Last: ${escHtml(t.lastEntry)}` : 'Nothing logged yet';
+  return `
+    <div class="text-card-body">
+      <div class="text-entry-row">
+        <textarea class="text-entry-input" id="txt-${t.id}" placeholder="Type and submit…" rows="1"></textarea>
+        <button class="text-submit-btn" data-id="${t.id}" data-action="submit">↑</button>
+      </div>
+      <div class="text-last" id="txt-last-${t.id}">${last}</div>
+    </div>`;
 }
 
 function attachListeners(t) {
@@ -497,7 +555,35 @@ function attachListeners(t) {
   }
 }
 
-function pulse(el) {
+  if (t.type === 'text') {
+    const btn = document.querySelector(`[data-id="${t.id}"][data-action="submit"]`);
+    const inp = document.getElementById('txt-' + t.id);
+    if (!btn || !inp) return;
+
+    // Auto-grow textarea
+    inp.addEventListener('input', () => {
+      inp.style.height = 'auto';
+      inp.style.height = inp.scrollHeight + 'px';
+    });
+
+    const submit = () => {
+      const val = inp.value.trim();
+      if (!val) return;
+      t.lastEntry = val;
+      save();
+      logToSheet(t, val);
+      const lastEl = document.getElementById('txt-last-' + t.id);
+      if (lastEl) lastEl.textContent = 'Last: ' + val;
+      inp.value = '';
+      inp.style.height = 'auto';
+      pulse(btn);
+    };
+
+    btn.addEventListener('click', submit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+    });
+  }
   el.style.transform = 'scale(0.88)';
   setTimeout(() => el.style.transform = '', 120);
 }
@@ -521,7 +607,7 @@ function selectType(type) {
 function confirmAdd() {
   const name = document.getElementById('new-name').value.trim();
   if (!name) { document.getElementById('new-name').focus(); return; }
-  trackers.push({ id: uid(), name, type: selectedType, value: selectedType === 'count' ? 0 : null });
+  trackers.push({ id: uid(), name, type: selectedType, value: selectedType === 'count' ? 0 : null, lastEntry: null });
   save(); renderAll(); closeSheet();
 }
 function deleteTracker(id) {
@@ -536,16 +622,19 @@ function save() {
 }
 
 // ── GOOGLE SHEETS ─────────────────────────────────────
-async function logToSheet(t) {
+async function logToSheet(t, overrideValue) {
   showFlash();
   if (!endpoint) return;
 
   const secret = localStorage.getItem('secret') || '';
+  const val = overrideValue !== undefined ? overrideValue
+    : t.value === true ? 'Yes' : t.value === false ? 'No' : t.value ?? '';
+
   const payload = {
     timestamp: new Date().toISOString(),
     tracker: t.name,
     type: t.type,
-    value: t.value === true ? 'Yes' : t.value === false ? 'No' : t.value ?? '',
+    value: val,
     secret
   };
 
