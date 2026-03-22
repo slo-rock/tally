@@ -553,8 +553,6 @@ function attachListeners(t) {
       });
     });
   }
-}
-
   if (t.type === 'text') {
     const btn = document.querySelector(`[data-id="${t.id}"][data-action="submit"]`);
     const inp = document.getElementById('txt-' + t.id);
@@ -584,6 +582,9 @@ function attachListeners(t) {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
     });
   }
+}
+
+function pulse(el) {
   el.style.transform = 'scale(0.88)';
   setTimeout(() => el.style.transform = '', 120);
 }
