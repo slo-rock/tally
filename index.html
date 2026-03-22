@@ -447,12 +447,13 @@ function renderAll() {
       <button class="del-btn" onclick="deleteTracker('${t.id}')" title="Delete">✕</button>
     `;
 
-    // Long-press to reveal delete
+    // Long-press to reveal delete (2 seconds)
     let pressTimer;
     inner.addEventListener('touchstart', () => {
-      pressTimer = setTimeout(() => card.classList.toggle('show-del'), 600);
+      pressTimer = setTimeout(() => card.classList.toggle('show-del'), 2000);
     }, { passive: true });
     inner.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
+    inner.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
 
     card.appendChild(inner);
 
