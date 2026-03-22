@@ -1,0 +1,603 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tally">
+<title>Tally</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #1a1a1f;
+    --surface2: #222228;
+    --border: #2e2e36;
+    --accent: #c8f07a;
+    --accent2: #7ab8f0;
+    --accent3: #f07ac8;
+    --text: #f0f0f0;
+    --muted: #888;
+    --danger: #f07a7a;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    padding: env(safe-area-inset-top, 16px) 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px; font-weight: 500;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .icon-btn:active { background: var(--surface2); }
+
+  /* ── SETTINGS BANNER ── */
+  #settings-banner {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: none;
+  }
+  #settings-banner.open { display: block; }
+  .settings-label {
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .settings-row { display: flex; gap: 8px; align-items: center; }
+  .settings-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 9px 12px;
+    font-size: 13px; font-family: 'DM Mono', monospace;
+    outline: none;
+  }
+  .settings-input:focus { border-color: var(--accent); }
+  .settings-input::placeholder { color: var(--muted); }
+  .save-btn {
+    background: var(--accent); color: #111;
+    border: none; border-radius: 10px;
+    padding: 9px 16px; font-size: 13px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); display: inline-block; margin-right: 6px;
+    transition: background 0.3s;
+  }
+  .status-dot.ok { background: var(--accent); }
+  .status-dot.err { background: var(--danger); }
+  .status-text { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* ── DATE STRIP ── */
+  .date-strip {
+    padding: 10px 20px 4px;
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    color: var(--muted); letter-spacing: 0.5px;
+  }
+
+  /* ── TRACKER GRID ── */
+  #tracker-list {
+    padding: 8px 16px 120px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .tracker-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .tracker-inner {
+    display: flex; align-items: center;
+    padding: 16px 16px 16px 18px;
+    gap: 14px;
+  }
+
+  .tracker-info { flex: 1; min-width: 0; }
+  .tracker-name {
+    font-size: 16px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tracker-type {
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.8px;
+  }
+
+  /* COUNT */
+  .count-control { display: flex; align-items: center; gap: 0; }
+  .count-btn {
+    width: 44px; height: 44px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text); font-size: 22px; font-weight: 300;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.1s, transform 0.1s;
+    flex-shrink: 0;
+  }
+  .count-btn:active { background: var(--border); transform: scale(0.93); }
+  .count-btn.plus { background: var(--accent); color: #111; border-color: var(--accent); }
+  .count-btn.plus:active { background: #aad55f; }
+  .count-value {
+    min-width: 44px; text-align: center;
+    font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 400;
+    padding: 0 4px;
+  }
+
+  /* YES/NO */
+  .yesno-control { display: flex; gap: 6px; }
+  .yn-btn {
+    padding: 10px 18px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--muted); font-size: 14px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .yn-btn.active-yes { background: var(--accent); color: #111; border-color: var(--accent); }
+  .yn-btn.active-no  { background: var(--danger);  color: #fff; border-color: var(--danger); }
+  .yn-btn:active { transform: scale(0.95); }
+
+  /* STARS */
+  .stars-control { display: flex; gap: 3px; }
+  .star {
+    font-size: 28px; cursor: pointer;
+    transition: transform 0.1s;
+    color: var(--border);
+    line-height: 1;
+  }
+  .star.filled { color: #f5c518; }
+  .star:active { transform: scale(0.85); }
+
+  /* DELETE swipe hint */
+  .tracker-card .del-btn {
+    display: none;
+    background: var(--danger); color: #fff;
+    border: none; padding: 0 18px;
+    font-size: 13px; cursor: pointer;
+    align-items: center; justify-content: center;
+  }
+  .tracker-card:hover .del-btn,
+  .tracker-card.show-del .del-btn { display: flex; }
+
+  /* log flash */
+  .log-flash {
+    position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #111;
+    padding: 8px 18px; border-radius: 100px;
+    font-size: 13px; font-weight: 600; font-family: 'DM Mono', monospace;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 100; white-space: nowrap;
+  }
+  .log-flash.show { opacity: 1; }
+
+  /* ── ADD BUTTON ── */
+  .fab {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+    right: 20px; z-index: 20;
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--accent); color: #111;
+    font-size: 30px; font-weight: 300;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 24px rgba(200,240,122,0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .fab:active { transform: scale(0.93); box-shadow: 0 2px 12px rgba(200,240,122,0.2); }
+
+  /* ── ADD SHEET ── */
+  .sheet-overlay {
+    position: fixed; inset: 0; z-index: 30;
+    background: rgba(0,0,0,0.6);
+    display: none; align-items: flex-end;
+  }
+  .sheet-overlay.open { display: flex; }
+  .sheet {
+    width: 100%; background: var(--surface);
+    border-radius: 24px 24px 0 0;
+    padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 28px);
+    animation: sheetUp 0.28s cubic-bezier(0.32,0.72,0,1);
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  .sheet-handle {
+    width: 40px; height: 4px; border-radius: 2px;
+    background: var(--border); margin: 0 auto 20px;
+  }
+  .sheet-title {
+    font-size: 18px; font-weight: 600; margin-bottom: 18px;
+  }
+  .field-label {
+    font-size: 12px; font-family: 'DM Mono', monospace;
+    text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); margin-bottom: 7px;
+  }
+  .text-input {
+    width: 100%; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); padding: 12px 14px;
+    font-size: 16px; outline: none; margin-bottom: 18px;
+  }
+  .text-input:focus { border-color: var(--accent); }
+  .type-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 8px;
+    margin-bottom: 22px;
+  }
+  .type-opt {
+    background: var(--surface2); border: 2px solid var(--border);
+    border-radius: 14px; padding: 12px 8px; text-align: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .type-opt.selected { border-color: var(--accent); background: rgba(200,240,122,0.08); }
+  .type-opt .type-icon { font-size: 22px; display: block; margin-bottom: 5px; }
+  .type-opt .type-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .type-opt.selected .type-label { color: var(--accent); }
+  .add-confirm-btn {
+    width: 100%; background: var(--accent); color: #111;
+    border: none; border-radius: 14px; padding: 15px;
+    font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .add-confirm-btn:active { background: #aad55f; }
+
+  /* ── EMPTY STATE ── */
+  #empty-state {
+    text-align: center; padding: 60px 30px;
+    color: var(--muted); display: none;
+  }
+  #empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+  #empty-state p { font-size: 15px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">tally</span>
+  <div class="header-actions">
+    <div class="icon-btn" id="settings-toggle" title="Settings">⚙︎</div>
+  </div>
+</header>
+
+<div id="settings-banner">
+  <div class="settings-label">
+    <span class="status-dot" id="status-dot"></span>
+    <span class="status-text" id="status-text">Google Sheets endpoint not set</span>
+  </div>
+  <div class="settings-row" style="margin-bottom:8px">
+    <input class="settings-input" id="endpoint-input" type="url"
+      placeholder="Apps Script URL…">
+  </div>
+  <div class="settings-row">
+    <input class="settings-input" id="secret-input" type="password"
+      placeholder="Secret token…">
+    <button class="save-btn" onclick="saveEndpoint()">Save</button>
+  </div>
+</div>
+
+<div class="date-strip" id="date-strip"></div>
+
+<div id="tracker-list"></div>
+<div id="empty-state">
+  <div class="empty-icon">○</div>
+  <p>No trackers yet.<br>Tap <strong>+</strong> to add your first one.</p>
+</div>
+
+<div class="log-flash" id="log-flash">logged ✓</div>
+
+<button class="fab" id="fab-btn">+</button>
+
+<!-- ADD SHEET -->
+<div class="sheet-overlay" id="add-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">New Tracker</div>
+    <div class="field-label">Name</div>
+    <input class="text-input" id="new-name" placeholder="e.g. Water glasses, Mood…" maxlength="40">
+    <div class="field-label">Type</div>
+    <div class="type-grid">
+      <div class="type-opt selected" data-type="count" onclick="selectType('count')">
+        <span class="type-icon">＋</span>
+        <span class="type-label">Counter</span>
+      </div>
+      <div class="type-opt" data-type="yesno" onclick="selectType('yesno')">
+        <span class="type-icon">✓</span>
+        <span class="type-label">Yes / No</span>
+      </div>
+      <div class="type-opt" data-type="stars" onclick="selectType('stars')">
+        <span class="type-icon">★</span>
+        <span class="type-label">1–5 Stars</span>
+      </div>
+    </div>
+    <button class="add-confirm-btn" onclick="confirmAdd()">Add Tracker</button>
+  </div>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────
+let trackers = JSON.parse(localStorage.getItem('trackers') || '[]');
+let endpoint = localStorage.getItem('endpoint') || '';
+let selectedType = 'count';
+let logTimer = null;
+
+// ── INIT ──────────────────────────────────────────────
+function init() {
+  updateDateStrip();
+  renderAll();
+  loadEndpointUI();
+  document.getElementById('fab-btn').addEventListener('click', openSheet);
+  document.getElementById('add-sheet').addEventListener('click', e => {
+    if (e.target === document.getElementById('add-sheet')) closeSheet();
+  });
+  document.getElementById('settings-toggle').addEventListener('click', () => {
+    document.getElementById('settings-banner').classList.toggle('open');
+  });
+  // Reset yes/no each new day
+  checkDayReset();
+}
+
+function updateDateStrip() {
+  const now = new Date();
+  document.getElementById('date-strip').textContent =
+    now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+}
+
+function checkDayReset() {
+  const today = new Date().toDateString();
+  const lastDay = localStorage.getItem('lastDay');
+  if (lastDay !== today) {
+    trackers.forEach(t => {
+      if (t.type === 'yesno') t.value = null;
+      if (t.type === 'count') t.value = 0;
+      if (t.type === 'stars') t.value = 0;
+    });
+    localStorage.setItem('lastDay', today);
+    save();
+  }
+}
+
+// ── RENDER ────────────────────────────────────────────
+function renderAll() {
+  const list = document.getElementById('tracker-list');
+  list.innerHTML = '';
+  document.getElementById('empty-state').style.display =
+    trackers.length === 0 ? 'block' : 'none';
+
+  trackers.forEach((t, i) => {
+    const card = document.createElement('div');
+    card.className = 'tracker-card';
+    card.dataset.id = t.id;
+
+    const inner = document.createElement('div');
+    inner.className = 'tracker-inner';
+
+    inner.innerHTML = `
+      <div class="tracker-info">
+        <div class="tracker-name">${escHtml(t.name)}</div>
+        <div class="tracker-type">${typeLabel(t.type)}</div>
+      </div>
+      <div class="tracker-control">${controlHTML(t)}</div>
+      <button class="del-btn" onclick="deleteTracker('${t.id}')" title="Delete">✕</button>
+    `;
+
+    // Long-press to reveal delete
+    let pressTimer;
+    inner.addEventListener('touchstart', () => {
+      pressTimer = setTimeout(() => card.classList.toggle('show-del'), 600);
+    }, { passive: true });
+    inner.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
+
+    card.appendChild(inner);
+    list.appendChild(card);
+  });
+
+  // attach control listeners
+  trackers.forEach(t => attachListeners(t));
+}
+
+function typeLabel(type) {
+  return { count: 'Counter', yesno: 'Yes / No', stars: 'Rating' }[type] || type;
+}
+
+function controlHTML(t) {
+  if (t.type === 'count') {
+    return `
+      <div class="count-control">
+        <button class="count-btn minus" data-id="${t.id}" data-action="dec">−</button>
+        <span class="count-value" id="val-${t.id}">${t.value || 0}</span>
+        <button class="count-btn plus"  data-id="${t.id}" data-action="inc">+</button>
+      </div>`;
+  }
+  if (t.type === 'yesno') {
+    const yc = t.value === true  ? 'active-yes' : '';
+    const nc = t.value === false ? 'active-no'  : '';
+    return `
+      <div class="yesno-control">
+        <button class="yn-btn ${yc}" data-id="${t.id}" data-action="yes">Yes</button>
+        <button class="yn-btn ${nc}" data-id="${t.id}" data-action="no">No</button>
+      </div>`;
+  }
+  if (t.type === 'stars') {
+    let s = '';
+    for (let i = 1; i <= 5; i++) {
+      s += `<span class="star ${i <= (t.value||0) ? 'filled' : ''}" data-id="${t.id}" data-star="${i}">★</span>`;
+    }
+    return `<div class="stars-control">${s}</div>`;
+  }
+  return '';
+}
+
+function attachListeners(t) {
+  if (t.type === 'count') {
+    document.querySelectorAll(`[data-id="${t.id}"][data-action]`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.action === 'inc') t.value = (t.value || 0) + 1;
+        if (btn.dataset.action === 'dec') t.value = Math.max(0, (t.value || 0) - 1);
+        document.getElementById('val-' + t.id).textContent = t.value;
+        save(); logToSheet(t);
+        pulse(btn);
+      });
+    });
+  }
+  if (t.type === 'yesno') {
+    document.querySelectorAll(`[data-id="${t.id}"][data-action]`).forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = btn.dataset.action === 'yes';
+        t.value = (t.value === val) ? null : val;
+        save(); logToSheet(t);
+        // re-render just the control
+        const ctrl = btn.closest('.tracker-control');
+        ctrl.innerHTML = controlHTML(t);
+        attachListeners(t);
+      });
+    });
+  }
+  if (t.type === 'stars') {
+    document.querySelectorAll(`[data-id="${t.id}"].star`).forEach(star => {
+      star.addEventListener('click', () => {
+        const v = parseInt(star.dataset.star);
+        t.value = (t.value === v) ? 0 : v;
+        save(); logToSheet(t);
+        // re-render just the control
+        const ctrl = star.closest('.tracker-control');
+        ctrl.innerHTML = controlHTML(t);
+        attachListeners(t);
+      });
+    });
+  }
+}
+
+function pulse(el) {
+  el.style.transform = 'scale(0.88)';
+  setTimeout(() => el.style.transform = '', 120);
+}
+
+// ── CRUD ──────────────────────────────────────────────
+function openSheet() {
+  document.getElementById('new-name').value = '';
+  selectType('count');
+  document.getElementById('add-sheet').classList.add('open');
+  setTimeout(() => document.getElementById('new-name').focus(), 300);
+}
+function closeSheet() {
+  document.getElementById('add-sheet').classList.remove('open');
+}
+function selectType(type) {
+  selectedType = type;
+  document.querySelectorAll('.type-opt').forEach(el => {
+    el.classList.toggle('selected', el.dataset.type === type);
+  });
+}
+function confirmAdd() {
+  const name = document.getElementById('new-name').value.trim();
+  if (!name) { document.getElementById('new-name').focus(); return; }
+  trackers.push({ id: uid(), name, type: selectedType, value: selectedType === 'count' ? 0 : null });
+  save(); renderAll(); closeSheet();
+}
+function deleteTracker(id) {
+  if (!confirm('Remove this tracker?')) return;
+  trackers = trackers.filter(t => t.id !== id);
+  save(); renderAll();
+}
+
+// ── PERSISTENCE ───────────────────────────────────────
+function save() {
+  localStorage.setItem('trackers', JSON.stringify(trackers));
+}
+
+// ── GOOGLE SHEETS ─────────────────────────────────────
+async function logToSheet(t) {
+  showFlash();
+  if (!endpoint) return;
+
+  const secret = localStorage.getItem('secret') || '';
+  const payload = {
+    timestamp: new Date().toISOString(),
+    tracker: t.name,
+    type: t.type,
+    value: t.value === true ? 'Yes' : t.value === false ? 'No' : t.value ?? '',
+    secret
+  };
+
+  try {
+    await fetch(endpoint, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    setStatus('ok', 'Logged to Sheets');
+  } catch(e) {
+    setStatus('err', 'Failed to log');
+  }
+}
+
+function showFlash() {
+  const f = document.getElementById('log-flash');
+  f.classList.add('show');
+  clearTimeout(logTimer);
+  logTimer = setTimeout(() => f.classList.remove('show'), 1200);
+}
+
+// ── SETTINGS ──────────────────────────────────────────
+function loadEndpointUI() {
+  if (endpoint) {
+    document.getElementById('endpoint-input').value = endpoint;
+    setStatus('ok', 'Connected to Sheets');
+  }
+  const secret = localStorage.getItem('secret') || '';
+  if (secret) document.getElementById('secret-input').value = secret;
+}
+function saveEndpoint() {
+  endpoint = document.getElementById('endpoint-input').value.trim();
+  const secret = document.getElementById('secret-input').value.trim();
+  localStorage.setItem('endpoint', endpoint);
+  localStorage.setItem('secret', secret);
+  setStatus(endpoint ? 'ok' : '', endpoint ? 'Connected to Sheets' : 'No endpoint set');
+  document.getElementById('settings-banner').classList.remove('open');
+}
+function setStatus(state, msg) {
+  document.getElementById('status-dot').className = 'status-dot ' + state;
+  document.getElementById('status-text').textContent = msg;
+}
+
+// ── UTILS ─────────────────────────────────────────────
+function uid() { return Math.random().toString(36).slice(2,10); }
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>
