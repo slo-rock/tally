@@ -211,6 +211,26 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
+  /* DRAG AND DROP */
+  .tracker-card.dragging {
+    opacity: 0.4;
+    border: 2px dashed var(--accent);
+  }
+  .tracker-card.drag-over {
+    border: 2px solid var(--accent);
+    transform: scale(1.02);
+    transition: transform 0.15s;
+  }
+  .drag-handle {
+    color: var(--muted); font-size: 18px;
+    padding: 0 4px 0 0;
+    cursor: grab; user-select: none;
+    display: none;
+    align-items: center;
+  }
+  .tracker-card.drag-mode .drag-handle { display: flex; }
+  .tracker-card.drag-mode { cursor: grab; border-color: var(--accent); }
+
   /* DELETE swipe hint */
   .tracker-card .del-btn {
     display: none;
@@ -391,6 +411,7 @@ function init() {
   updateDateStrip();
   renderAll();
   loadEndpointUI();
+  initDragAndDrop();
   document.getElementById('fab-btn').addEventListener('click', openSheet);
   document.getElementById('add-sheet').addEventListener('click', e => {
     if (e.target === document.getElementById('add-sheet')) closeSheet();
@@ -421,6 +442,10 @@ function checkDayReset() {
     localStorage.setItem('lastDay', today);
     save();
   }
+  // Check again at next midnight
+  const now = new Date();
+  const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
+  setTimeout(() => { checkDayReset(); renderAll(); }, msUntilMidnight);
 }
 
 // ── RENDER ────────────────────────────────────────────
@@ -439,6 +464,7 @@ function renderAll() {
     inner.className = 'tracker-inner';
 
     inner.innerHTML = `
+      <div class="drag-handle">⠿</div>
       <div class="tracker-info">
         <div class="tracker-name">${escHtml(t.name)}</div>
         <div class="tracker-type">${typeLabel(t.type)}</div>
@@ -447,10 +473,16 @@ function renderAll() {
       <button class="del-btn" onclick="deleteTracker('${t.id}')" title="Delete">✕</button>
     `;
 
-    // Long-press to reveal delete (2 seconds)
+    // Long-press: 2 seconds activates drag mode OR delete reveal
     let pressTimer;
+    let dragModeActive = false;
     inner.addEventListener('touchstart', () => {
-      pressTimer = setTimeout(() => card.classList.toggle('show-del'), 2000);
+      pressTimer = setTimeout(() => {
+        dragModeActive = true;
+        // Toggle drag mode on all cards
+        document.querySelectorAll('.tracker-card').forEach(c => c.classList.add('drag-mode'));
+        card.classList.remove('show-del');
+      }, 2000);
     }, { passive: true });
     inner.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
     inner.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
@@ -587,6 +619,77 @@ function attachListeners(t) {
 function pulse(el) {
   el.style.transform = 'scale(0.88)';
   setTimeout(() => el.style.transform = '', 120);
+}
+
+// ── DRAG AND DROP REORDER ─────────────────────────────
+function exitDragMode() {
+  document.querySelectorAll('.tracker-card').forEach(c => {
+    c.classList.remove('drag-mode', 'dragging', 'drag-over', 'show-del');
+  });
+}
+
+function initDragAndDrop() {
+  const list = document.getElementById('tracker-list');
+  let dragSrc = null;
+  let touchDragCard = null;
+  let touchPlaceholder = null;
+
+  // ── TOUCH DRAG ──
+  list.addEventListener('touchstart', e => {
+    const card = e.target.closest('.tracker-card');
+    if (!card || !card.classList.contains('drag-mode')) return;
+    // Only drag from drag handle or card header area
+    touchDragCard = card;
+    card.classList.add('dragging');
+  }, { passive: true });
+
+  list.addEventListener('touchmove', e => {
+    if (!touchDragCard) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const cards = [...list.querySelectorAll('.tracker-card:not(.dragging)')];
+    let target = null;
+    for (const c of cards) {
+      const rect = c.getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        target = c; break;
+      }
+    }
+    cards.forEach(c => c.classList.remove('drag-over'));
+    if (target) target.classList.add('drag-over');
+  }, { passive: false });
+
+  list.addEventListener('touchend', e => {
+    if (!touchDragCard) return;
+    const cards = [...list.querySelectorAll('.tracker-card:not(.dragging)')];
+    const overCard = list.querySelector('.tracker-card.drag-over');
+
+    if (overCard) {
+      const srcId = touchDragCard.dataset.id;
+      const tgtId = overCard.dataset.id;
+      const srcIdx = trackers.findIndex(t => t.id === srcId);
+      const tgtIdx = trackers.findIndex(t => t.id === tgtId);
+      if (srcIdx !== -1 && tgtIdx !== -1) {
+        const [moved] = trackers.splice(srcIdx, 1);
+        trackers.splice(tgtIdx, 0, moved);
+        save();
+      }
+    }
+
+    touchDragCard.classList.remove('dragging');
+    cards.forEach(c => c.classList.remove('drag-over'));
+    touchDragCard = null;
+    exitDragMode();
+    renderAll();
+  }, { passive: true });
+
+  // Tap outside cards to exit drag mode
+  document.addEventListener('touchstart', e => {
+    if (!e.target.closest('.tracker-card') &&
+        document.querySelector('.tracker-card.drag-mode')) {
+      exitDragMode();
+    }
+  }, { passive: true });
 }
 
 // ── CRUD ──────────────────────────────────────────────
