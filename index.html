@@ -409,6 +409,7 @@ let logTimer = null;
 // ── INIT ──────────────────────────────────────────────
 function init() {
   updateDateStrip();
+  checkDayReset(); // reset first so renderAll shows correct values
   renderAll();
   loadEndpointUI();
   initDragAndDrop();
@@ -419,8 +420,6 @@ function init() {
   document.getElementById('settings-toggle').addEventListener('click', () => {
     document.getElementById('settings-banner').classList.toggle('open');
   });
-  // Reset yes/no each new day
-  checkDayReset();
 }
 
 function updateDateStrip() {
@@ -437,15 +436,16 @@ function checkDayReset() {
       if (t.type === 'yesno') t.value = null;
       if (t.type === 'count') t.value = 0;
       if (t.type === 'stars') t.value = 0;
-      // text trackers keep lastEntry but don't reset
     });
     localStorage.setItem('lastDay', today);
     save();
+    renderAll(); // re-render immediately after reset
+    updateDateStrip();
   }
-  // Check again at next midnight
+  // Schedule next check at midnight
   const now = new Date();
   const msUntilMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
-  setTimeout(() => { checkDayReset(); renderAll(); }, msUntilMidnight);
+  setTimeout(checkDayReset, msUntilMidnight);
 }
 
 // ── RENDER ────────────────────────────────────────────
@@ -472,20 +472,6 @@ function renderAll() {
       ${t.type !== 'text' ? `<div class="tracker-control">${controlHTML(t)}</div>` : ''}
       <button class="del-btn" onclick="deleteTracker('${t.id}')" title="Delete">✕</button>
     `;
-
-    // Long-press: 2 seconds activates drag mode OR delete reveal
-    let pressTimer;
-    let dragModeActive = false;
-    inner.addEventListener('touchstart', () => {
-      pressTimer = setTimeout(() => {
-        dragModeActive = true;
-        // Toggle drag mode on all cards
-        document.querySelectorAll('.tracker-card').forEach(c => c.classList.add('drag-mode'));
-        card.classList.remove('show-del');
-      }, 2000);
-    }, { passive: true });
-    inner.addEventListener('touchend', () => clearTimeout(pressTimer), { passive: true });
-    inner.addEventListener('touchmove', () => clearTimeout(pressTimer), { passive: true });
 
     card.appendChild(inner);
 
@@ -630,22 +616,51 @@ function exitDragMode() {
 
 function initDragAndDrop() {
   const list = document.getElementById('tracker-list');
-  let dragSrc = null;
   let touchDragCard = null;
-  let touchPlaceholder = null;
+  let longPressTimer = null;
+  let dragActive = false;
+  let startY = 0;
 
-  // ── TOUCH DRAG ──
+  // Use a single touchstart on the document to initiate long-press
   list.addEventListener('touchstart', e => {
     const card = e.target.closest('.tracker-card');
-    if (!card || !card.classList.contains('drag-mode')) return;
-    // Only drag from drag handle or card header area
-    touchDragCard = card;
-    card.classList.add('dragging');
+    if (!card) return;
+
+    // If already in drag mode, start dragging immediately
+    if (card.classList.contains('drag-mode')) {
+      touchDragCard = card;
+      card.classList.add('dragging');
+      dragActive = true;
+      return;
+    }
+
+    // Start long-press timer
+    startY = e.touches[0].clientY;
+    longPressTimer = setTimeout(() => {
+      // Activate drag mode on all cards
+      document.querySelectorAll('.tracker-card').forEach(c => c.classList.add('drag-mode'));
+      touchDragCard = card;
+      card.classList.add('dragging');
+      dragActive = true;
+      // Vibrate for feedback if supported
+      if (navigator.vibrate) navigator.vibrate(40);
+    }, 2000);
   }, { passive: true });
 
   list.addEventListener('touchmove', e => {
-    if (!touchDragCard) return;
+    // Cancel long-press if finger moves significantly before 2s
+    if (longPressTimer && !dragActive) {
+      const dy = Math.abs(e.touches[0].clientY - startY);
+      if (dy > 8) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      return;
+    }
+
+    if (!touchDragCard || !dragActive) return;
     e.preventDefault();
+
     const touch = e.touches[0];
     const cards = [...list.querySelectorAll('.tracker-card:not(.dragging)')];
     let target = null;
@@ -660,30 +675,31 @@ function initDragAndDrop() {
   }, { passive: false });
 
   list.addEventListener('touchend', e => {
-    if (!touchDragCard) return;
-    const cards = [...list.querySelectorAll('.tracker-card:not(.dragging)')];
-    const overCard = list.querySelector('.tracker-card.drag-over');
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
 
+    if (!touchDragCard || !dragActive) return;
+
+    const overCard = list.querySelector('.tracker-card.drag-over');
     if (overCard) {
       const srcId = touchDragCard.dataset.id;
       const tgtId = overCard.dataset.id;
       const srcIdx = trackers.findIndex(t => t.id === srcId);
       const tgtIdx = trackers.findIndex(t => t.id === tgtId);
-      if (srcIdx !== -1 && tgtIdx !== -1) {
+      if (srcIdx !== -1 && tgtIdx !== -1 && srcIdx !== tgtIdx) {
         const [moved] = trackers.splice(srcIdx, 1);
         trackers.splice(tgtIdx, 0, moved);
         save();
       }
     }
 
-    touchDragCard.classList.remove('dragging');
-    cards.forEach(c => c.classList.remove('drag-over'));
     touchDragCard = null;
+    dragActive = false;
     exitDragMode();
     renderAll();
   }, { passive: true });
 
-  // Tap outside cards to exit drag mode
+  // Tap outside to exit drag mode
   document.addEventListener('touchstart', e => {
     if (!e.target.closest('.tracker-card') &&
         document.querySelector('.tracker-card.drag-mode')) {
