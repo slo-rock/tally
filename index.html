@@ -222,12 +222,11 @@
     touch-action: none;
     flex-shrink: 0;
   }
-  .reorder-mode .drag-handle { display: flex; }
-  .reorder-mode.tracker-card { border-color: var(--accent); }
-  .reorder-mode-active .tracker-card { border-color: var(--accent); }
+  .tracker-card.reorder-mode .drag-handle { display: flex; }
+  .tracker-card.reorder-mode { border-color: var(--accent); }
   .tracker-card.dragging { opacity: 0.35; border: 2px dashed var(--accent); }
   .tracker-card.drag-over { border: 2px solid var(--accent); background: rgba(200,240,122,0.06); }
-  .reorder-btn.active { background: var(--accent); color: #111; border-color: var(--accent); }
+  .reorder-btn.active { background: var(--accent) !important; color: #111 !important; border-color: var(--accent) !important; }
 
   /* DELETE swipe hint */
   .tracker-card .del-btn {
@@ -335,7 +334,7 @@
 <header>
   <span class="logo">tally</span>
   <div class="header-actions">
-    <div class="icon-btn reorder-btn" id="reorder-toggle" title="Reorder">⇅</div>
+    <div class="icon-btn reorder-btn" id="reorder-toggle" title="Reorder">↕</div>
     <div class="icon-btn" id="settings-toggle" title="Settings">⚙︎</div>
   </div>
 </header>
