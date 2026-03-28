@@ -130,6 +130,7 @@
   .tracker-name {
     font-size: 16px; font-weight: 500;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    -webkit-user-select: none; user-select: none;
   }
   .tracker-type {
     font-size: 11px; font-family: 'DM Mono', monospace;
@@ -211,25 +212,22 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
-  /* DRAG AND DROP */
-  .tracker-card.dragging {
-    opacity: 0.4;
-    border: 2px dashed var(--accent);
-  }
-  .tracker-card.drag-over {
-    border: 2px solid var(--accent);
-    transform: scale(1.02);
-    transition: transform 0.15s;
-  }
   .drag-handle {
-    color: var(--muted); font-size: 18px;
-    padding: 0 4px 0 0;
-    cursor: grab; user-select: none;
+    width: 32px; height: 44px;
     display: none;
-    align-items: center;
+    align-items: center; justify-content: center;
+    color: var(--muted); font-size: 20px;
+    cursor: grab; user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    flex-shrink: 0;
   }
-  .tracker-card.drag-mode .drag-handle { display: flex; }
-  .tracker-card.drag-mode { cursor: grab; border-color: var(--accent); }
+  .reorder-mode .drag-handle { display: flex; }
+  .reorder-mode.tracker-card { border-color: var(--accent); }
+  .reorder-mode-active .tracker-card { border-color: var(--accent); }
+  .tracker-card.dragging { opacity: 0.35; border: 2px dashed var(--accent); }
+  .tracker-card.drag-over { border: 2px solid var(--accent); background: rgba(200,240,122,0.06); }
+  .reorder-btn.active { background: var(--accent); color: #111; border-color: var(--accent); }
 
   /* DELETE swipe hint */
   .tracker-card .del-btn {
@@ -337,6 +335,7 @@
 <header>
   <span class="logo">tally</span>
   <div class="header-actions">
+    <div class="icon-btn reorder-btn" id="reorder-toggle" title="Reorder">⇅</div>
     <div class="icon-btn" id="settings-toggle" title="Settings">⚙︎</div>
   </div>
 </header>
@@ -608,82 +607,74 @@ function pulse(el) {
 }
 
 // ── DRAG AND DROP REORDER ─────────────────────────────
-function exitDragMode() {
+let reorderModeOn = false;
+
+function toggleReorderMode() {
+  reorderModeOn = !reorderModeOn;
+  const btn = document.getElementById('reorder-toggle');
+  const list = document.getElementById('tracker-list');
+  btn.classList.toggle('active', reorderModeOn);
+  list.classList.toggle('reorder-mode-active', reorderModeOn);
   document.querySelectorAll('.tracker-card').forEach(c => {
-    c.classList.remove('drag-mode', 'dragging', 'drag-over', 'show-del');
+    c.classList.toggle('reorder-mode', reorderModeOn);
+  });
+}
+
+function exitDragMode() {
+  reorderModeOn = false;
+  const btn = document.getElementById('reorder-toggle');
+  const list = document.getElementById('tracker-list');
+  if (btn) btn.classList.remove('active');
+  if (list) list.classList.remove('reorder-mode-active');
+  document.querySelectorAll('.tracker-card').forEach(c => {
+    c.classList.remove('reorder-mode', 'dragging', 'drag-over');
   });
 }
 
 function initDragAndDrop() {
   const list = document.getElementById('tracker-list');
-  let touchDragCard = null;
-  let longPressTimer = null;
-  let dragActive = false;
+  let dragCard = null;
   let startY = 0;
+  let currentOver = null;
 
-  // Use a single touchstart on the document to initiate long-press
+  document.getElementById('reorder-toggle').addEventListener('click', toggleReorderMode);
+
+  // Touch handlers on the list — only active when reorder mode is on
   list.addEventListener('touchstart', e => {
-    const card = e.target.closest('.tracker-card');
-    if (!card) return;
-
-    // If already in drag mode, start dragging immediately
-    if (card.classList.contains('drag-mode')) {
-      touchDragCard = card;
-      card.classList.add('dragging');
-      dragActive = true;
-      return;
-    }
-
-    // Start long-press timer
+    if (!reorderModeOn) return;
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    dragCard = handle.closest('.tracker-card');
+    if (!dragCard) return;
     startY = e.touches[0].clientY;
-    longPressTimer = setTimeout(() => {
-      // Activate drag mode on all cards
-      document.querySelectorAll('.tracker-card').forEach(c => c.classList.add('drag-mode'));
-      touchDragCard = card;
-      card.classList.add('dragging');
-      dragActive = true;
-      // Vibrate for feedback if supported
-      if (navigator.vibrate) navigator.vibrate(40);
-    }, 2000);
-  }, { passive: true });
+    dragCard.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
 
   list.addEventListener('touchmove', e => {
-    // Cancel long-press if finger moves significantly before 2s
-    if (longPressTimer && !dragActive) {
-      const dy = Math.abs(e.touches[0].clientY - startY);
-      if (dy > 8) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-      }
-      return;
-    }
-
-    if (!touchDragCard || !dragActive) return;
+    if (!dragCard) return;
     e.preventDefault();
-
     const touch = e.touches[0];
     const cards = [...list.querySelectorAll('.tracker-card:not(.dragging)')];
-    let target = null;
+    let over = null;
     for (const c of cards) {
       const rect = c.getBoundingClientRect();
       if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
-        target = c; break;
+        over = c; break;
       }
     }
-    cards.forEach(c => c.classList.remove('drag-over'));
-    if (target) target.classList.add('drag-over');
+    if (over !== currentOver) {
+      if (currentOver) currentOver.classList.remove('drag-over');
+      currentOver = over;
+      if (currentOver) currentOver.classList.add('drag-over');
+    }
   }, { passive: false });
 
   list.addEventListener('touchend', e => {
-    clearTimeout(longPressTimer);
-    longPressTimer = null;
-
-    if (!touchDragCard || !dragActive) return;
-
-    const overCard = list.querySelector('.tracker-card.drag-over');
-    if (overCard) {
-      const srcId = touchDragCard.dataset.id;
-      const tgtId = overCard.dataset.id;
+    if (!dragCard) return;
+    if (currentOver) {
+      const srcId = dragCard.dataset.id;
+      const tgtId = currentOver.dataset.id;
       const srcIdx = trackers.findIndex(t => t.id === srcId);
       const tgtIdx = trackers.findIndex(t => t.id === tgtId);
       if (srcIdx !== -1 && tgtIdx !== -1 && srcIdx !== tgtIdx) {
@@ -691,20 +682,15 @@ function initDragAndDrop() {
         trackers.splice(tgtIdx, 0, moved);
         save();
       }
+      currentOver.classList.remove('drag-over');
+      currentOver = null;
     }
-
-    touchDragCard = null;
-    dragActive = false;
-    exitDragMode();
+    dragCard.classList.remove('dragging');
+    dragCard = null;
+    // Stay in reorder mode so user can do multiple reorders
     renderAll();
-  }, { passive: true });
-
-  // Tap outside to exit drag mode
-  document.addEventListener('touchstart', e => {
-    if (!e.target.closest('.tracker-card') &&
-        document.querySelector('.tracker-card.drag-mode')) {
-      exitDragMode();
-    }
+    // Re-enable reorder mode styling after re-render
+    document.querySelectorAll('.tracker-card').forEach(c => c.classList.add('reorder-mode'));
   }, { passive: true });
 }
 
